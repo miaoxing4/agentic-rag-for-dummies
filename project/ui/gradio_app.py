@@ -80,7 +80,22 @@ def create_gradio_ui():
         with gr.Tab("Chat", elem_id="chat-tab"):
             chatbot = gr.Chatbot(
                 height=720, 
-                placeholder="<strong>Ask me anything!</strong><br><em>I'll search, reason, and act to give you the best answer :)</em>",
+                placeholder="""🔍 欢迎来到O-RAN 问题诊断助手
+
+请描述您遇到的问题，需包含：
+
+【必填】制式        LTE / NR SA / NR NSA / NB-IoT
+【必填】PHY相关日志    错误打印原文
+【建议】业务现象    问题发生时的业务阶段或现象描述
+ 我将尽力为您提供定义参考！
+
+──────────────────────────────
+示例一（有明确错误打印）：
+  制式：NR SA
+  PHY相关日志：[PHY] MSG3 retransmission exhausted, ue_id=0x12, attempt=4
+  现象：UE无法完成Attach，收不到测量消息
+──────────────────────────────
+⚠️ 仅凭现象描述（如"UE掉线"）无法定位问题，请务必提供错误信息。""",
                 show_label=False,
                 avatar_images=(None, os.path.join(ASSETS_DIR, "chatbot_avatar.png")),
                 layout="bubble",
