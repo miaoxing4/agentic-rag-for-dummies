@@ -58,8 +58,21 @@ class RAGSystem:
         else:
             raise ValueError(f"Unsupported LLM provider: {config.ACTIVE_LLM_CONFIG}")
         
-        tools = ToolFactory(collection).create_tools()
-        self.agent_graph = create_agent_graph(llm, tools)
+        # 创建基础RAG工具
+        base_tools = ToolFactory(collection).create_tools()
+        
+        # 加载MCP工具
+        from mcp_client.loader import MCPToolLoader
+        mcp_loader = MCPToolLoader()
+        mcp_tools = mcp_loader.load_tools()
+        
+        # 合并工具列表
+        all_tools = base_tools + mcp_tools
+        
+        # 保存MCP加载器引用以便后续关闭连接
+        self._mcp_loader = mcp_loader
+        
+        self.agent_graph = create_agent_graph(llm, all_tools)
 
     def get_config(self):
         cfg = {"configurable": {"thread_id": self.thread_id}, "recursion_limit": self.recursion_limit}

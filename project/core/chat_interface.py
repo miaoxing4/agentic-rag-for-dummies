@@ -145,7 +145,7 @@ class ChatInterface:
                 elif isinstance(chunk, AIMessageChunk) and chunk.content and node not in SILENT_NODES:
                     self._handle_llm_token(chunk, node, response_messages)
 
-                yield copy.deepcopy(response_messages)
+                yield response_messages
 
         except Exception as e:
             yield f"❌ Error: {str(e)}"
