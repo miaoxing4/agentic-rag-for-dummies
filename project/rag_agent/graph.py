@@ -8,7 +8,23 @@ from .nodes import *
 from .edges import *
 
 def create_agent_graph(llm, tools_list):
+    print(f"\n\n{'='*80}")
+    print(f" [GRAPH DEBUG] 收到的工具列表:")
+    for idx, tool in enumerate(tools_list):
+        print(f"   [{idx+1}] 工具名: {tool.name}")
+        print(f"        参数: {list(tool.args.keys())}")
+        print(f"        描述: {tool.description[:80]}...")
+    print(f"{'='*80}\n")
+
     llm_with_tools = llm.bind_tools(tools_list)
+    
+    #  DEBUG: 验证绑定后的工具
+    # print(f"\n [GRAPH DEBUG] bind_tools 之后的工具:")
+    # if hasattr(llm_with_tools, 'tools'):
+    #     for idx, tool in enumerate(llm_with_tools.tools):
+    #         print(f"   [{idx+1}] 工具名: {tool.name}")
+    # else:
+    #     print(f" llm_with_tools 没有tools属性！")
     tool_node = ToolNode(tools_list)
 
     checkpointer = InMemorySaver()
@@ -22,7 +38,7 @@ def create_agent_graph(llm, tools_list):
     agent_builder.add_node(should_compress_context)
     agent_builder.add_node(collect_answer)
 
-    agent_builder.add_edge(START, "orchestrator")
+    agent_builder.set_entry_point("orchestrator")
     agent_builder.add_conditional_edges("orchestrator", route_after_orchestrator_call, {"tools": "tools", "fallback_response": "fallback_response", "collect_answer": "collect_answer"})
     agent_builder.add_edge("tools", "should_compress_context")
     agent_builder.add_edge("compress_context", "orchestrator")

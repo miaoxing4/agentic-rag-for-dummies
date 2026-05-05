@@ -1,4 +1,5 @@
 import uuid
+import os
 from langchain_ollama import ChatOllama
 import config
 from db.vector_db_manager import VectorDbManager
@@ -24,7 +25,39 @@ class RAGSystem:
         self.vector_db.create_collection(self.collection_name)
         collection = self.vector_db.get_collection(self.collection_name)
 
-        llm = ChatOllama(model=config.LLM_MODEL, temperature=config.LLM_TEMPERATURE)
+        # Load active configuration
+        active_config = config.LLM_CONFIGS[config.ACTIVE_LLM_CONFIG]
+        model = active_config["model"]
+        temperature = active_config.get("temperature", 0)
+
+        if config.ACTIVE_LLM_CONFIG == "ollama":
+            from langchain_ollama import ChatOllama
+            llm = ChatOllama(model=model, temperature=temperature, base_url=active_config["url"])
+            
+        elif config.ACTIVE_LLM_CONFIG == "openai":
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(model=model, temperature=temperature)
+            
+        elif config.ACTIVE_LLM_CONFIG == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+            llm = ChatAnthropic(model=model, temperature=temperature)
+            
+        elif config.ACTIVE_LLM_CONFIG == "google":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            llm = ChatGoogleGenerativeAI(model=model, temperature=temperature)
+        
+        elif config.ACTIVE_LLM_CONFIG == "openai_compatible":
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(
+                model=model,
+                temperature=temperature,
+                base_url=active_config.get("base_url"), 
+                api_key=active_config.get("api_key")
+            )
+            
+        else:
+            raise ValueError(f"Unsupported LLM provider: {config.ACTIVE_LLM_CONFIG}")
+        
         tools = ToolFactory(collection).create_tools()
         self.agent_graph = create_agent_graph(llm, tools)
 

@@ -34,12 +34,45 @@ def rewrite_query(state: State, llm):
     context_section = (f"Conversation Context:\n{conversation_summary}\n" if conversation_summary.strip() else "") + f"User Query:\n{last_message.content}\n"
 
     llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(QueryAnalysis)
+    
+    print(f"\n\n [REWRITE DEBUG] 发送给LLM的内容:")
+    print(repr(context_section))
+    print(f"{'='*60}")
+    
     response = llm_with_structure.invoke([SystemMessage(content=get_rewrite_query_prompt()), HumanMessage(content=context_section)])
+    
+    print(f"\n [REWRITE DEBUG] LLM返回的结构化数据:")
+    print(f"is_clear = {response.is_clear}")
+    print(f"questions = {response.questions}")
+    print(f"clarification_needed = {repr(response.clarification_needed)}")
+    print(f"{'='*60}")
 
-    if response.questions and response.is_clear:
+    # 清除所有字段中的控制字符，包括空字节、退格、换行等
+    if response.clarification_needed:
+        response.clarification_needed = ''.join(c for c in response.clarification_needed if ord(c) >= 32)
+    
+    # 清除questions中的控制字符
+    cleaned_questions = []
+    for q in response.questions:
+        cleaned = ''.join(c for c in q if ord(c) >= 32)
+        cleaned_questions.append(cleaned)
+    response.questions = cleaned_questions
+    
+    # 清理整个对象所有字段
+    for field_name in response.model_fields:
+        value = getattr(response, field_name)
+        if isinstance(value, str):
+            setattr(response, field_name, ''.join(c for c in value if ord(c) >= 32))
+    
+    # 强制忽略is_clear字段，只要questions不是空就直接执行
+    if response.questions:
+        print(f"\n\n [OVERRIDE] 忽略大模型的is_clear={response.is_clear}，强制进入检索流程！")
+        print(f"   强制执行问题: {response.questions}")
+        
         delete_all = [RemoveMessage(id=m.id) for m in state["messages"] if not isinstance(m, SystemMessage)]
         return {"questionIsClear": True, "messages": delete_all, "originalQuery": last_message.content, "rewrittenQuestions": response.questions}
 
+    # 只有当大模型真的什么问题都拆不出来，完全返回空列表的时候，才进入澄清模式
     clarification = response.clarification_needed if response.clarification_needed and len(response.clarification_needed.strip()) > 10 else "I need more information to understand your question."
     return {"questionIsClear": False, "messages": [AIMessage(content=clarification)]}
 
@@ -54,13 +87,54 @@ def orchestrator(state: AgentState, llm_with_tools):
         [HumanMessage(content=f"[COMPRESSED CONTEXT FROM PRIOR RESEARCH]\n\n{context_summary}")]
         if context_summary else []
     )
+
+    # 🔍 🔍 🔍 DEBUG: 打印到底传给LLM了什么工具
+    print(f"\n\n{'='*80}")
+    print(f"🤖 [ORCHESTRATOR DEBUG] llm_with_tools 绑定的工具:")
+    
+    # 兼容不同LangChain版本
+    if hasattr(llm_with_tools, 'tools'):
+        for idx, tool in enumerate(llm_with_tools.tools):
+            print(f"   [{idx+1}] 工具名: {tool.name}")
+            print(f"        参数: {list(tool.args.keys())}")
+            print(f"        描述: {tool.description[:80]}...")
+    elif hasattr(llm_with_tools, 'functions'):
+        print(f"   ✅ 工具已绑定 (旧版LangChain functions格式)")
+        for idx, func in enumerate(llm_with_tools.functions):
+            print(f"   [{idx+1}] 函数名: {func['name']}")
+    elif hasattr(llm_with_tools, 'kwargs') and 'tools' in llm_with_tools.kwargs:
+        print(f"   ✅ 工具已绑定 (RunnableBinding格式)")
+        for idx, tool in enumerate(llm_with_tools.kwargs['tools']):
+            if hasattr(tool, 'name'):
+                print(f"   [{idx+1}] 工具名: {tool.name}")
+            elif isinstance(tool, dict) and 'name' in tool:
+                print(f"   [{idx+1}] 工具名: {tool['name']}")
+            else:
+                print(f"   [{idx+1}] 工具: {repr(tool)}")
+    else:
+        print(f"   ⚠️  未找到tools属性，这是不同LangChain版本的正常现象")
+        print(f"   ✅ 工具已经在bind_tools时正确绑定，大模型可以看到它们")
+    
+    print(f"{'='*80}\n")
+
     if not state.get("messages"):
         human_msg = HumanMessage(content=state["question"])
         force_search = HumanMessage(content="YOU MUST CALL 'search_child_chunks' AS THE FIRST STEP TO ANSWER THIS QUESTION.")
         response = llm_with_tools.invoke([sys_msg] + summary_injection + [human_msg, force_search])
+        
+        print(f"\n📤 [LLM RESPONSE] 返回的Tool calls: {response.tool_calls}")
+        if not response.tool_calls:
+            print(f"⚠️ ⚠️ ⚠️ 大模型拒绝调用任何工具! 回答内容: {response.content[:200]}")
+        
         return {"messages": [human_msg, response], "tool_call_count": len(response.tool_calls or []), "iteration_count": 1}
 
-    response = llm_with_tools.invoke([sys_msg] + summary_injection + state["messages"])
+    force_search = HumanMessage(content="YOU MUST CALL 'search_child_chunks' BEFORE ANSWERING. DO NOT ANSWER FROM YOUR OWN KNOWLEDGE.")
+    response = llm_with_tools.invoke([sys_msg] + summary_injection + state["messages"] + [force_search])
+    
+    print(f"\n📤 [LLM RESPONSE] 返回的Tool calls: {response.tool_calls}")
+    if not response.tool_calls:
+        print(f"⚠️ ⚠️ ⚠️ 大模型拒绝调用任何工具! 回答内容: {response.content[:200]}")
+    
     tool_calls = response.tool_calls if hasattr(response, "tool_calls") else []
     return {"messages": [response], "tool_call_count": len(tool_calls) if tool_calls else 0, "iteration_count": 1}
 

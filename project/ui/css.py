@@ -96,39 +96,42 @@ custom_css = """
     /* ============================================
        CHAT INPUT BOX
        ============================================ */
-    textarea[placeholder="Type a message..."],
-    textarea[data-testid*="textbox"]:not(#file-list-box textarea) {
+    #chat-tab #rag-chat-input textarea,
+    #chat-tab textarea[data-testid="textbox"]:not([disabled]) {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }
     
-    textarea[placeholder="Type a message..."]:focus {
+    #chat-tab #rag-chat-input textarea:focus,
+    #chat-tab textarea[data-testid="textbox"]:not([disabled]):focus {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }
     
-    .gr-text-input:has(textarea[placeholder="Type a message..."]),
-    [class*="chatbot"] + * [data-testid="textbox"],
-    form:has(textarea[placeholder="Type a message..."]) > div {
+    #chat-tab #rag-chat-input,
+    #chat-tab form:has(#rag-chat-input) > div,
+    #chat-tab form:has(textarea[data-testid="textbox"]:not([disabled])) > div {
         background: transparent !important;
         border: none !important;
         gap: 12px !important;
     }
     
-    form:has(textarea[placeholder="Type a message..."]) button,
-    [class*="chatbot"] ~ * button[type="submit"] {
+    #chat-tab form:has(#rag-chat-input) button,
+    #chat-tab form:has(textarea[data-testid="textbox"]:not([disabled])) button {
         background: transparent !important;
         border: none !important;
         padding: 8px !important;
     }
     
-    form:has(textarea[placeholder="Type a message..."]) button:hover {
+    #chat-tab form:has(#rag-chat-input) button:hover,
+    #chat-tab form:has(textarea[data-testid="textbox"]:not([disabled])) button:hover {
         background: rgba(59, 130, 246, 0.1) !important;
     }
     
-    form:has(textarea[placeholder="Type a message..."]) {
+    #chat-tab form:has(#rag-chat-input),
+    #chat-tab form:has(textarea[data-testid="textbox"]:not([disabled])) {
         gap: 12px !important;
         display: flex !important;
     }
@@ -205,14 +208,17 @@ custom_css = """
     /* ============================================
        CHATBOT CONTAINER
        ============================================ */
-    .chatbot {
+    #rag-chatbot,
+    #rag-chatbot .bubble-wrap,
+    #chat-tab [aria-label="chatbot conversation"] {
         border-radius: 5px !important;
         background: #1a1a1a !important;
         border: none !important;
     }
 
-    .chatbot .message-wrap,
-    .chatbot > div {
+    #rag-chatbot .message-wrap,
+    #chat-tab [aria-label="chatbot conversation"] .message-wrap,
+    #rag-chatbot > div {
         gap: 8px !important;
         padding: 12px !important;
     }
@@ -224,12 +230,16 @@ custom_css = """
         border-radius: 10px !important;
     }
 
-    .message.user {
+    #chat-tab .user-row .message,
+    #chat-tab [data-testid="user"] {
         background: #3b82f6 !important;
         color: white !important;
     }
     
-    .message.bot {
+    #chat-tab .bot-row .message,
+    #chat-tab .assistant-row .message,
+    #chat-tab [data-testid="bot"],
+    #chat-tab [data-testid="assistant"] {
         background: #1f1f1f !important;
         color: #e5e5e5 !important;
         border: 1px solid #3f3f3f !important;
@@ -275,5 +285,34 @@ custom_css = """
     
     footer {
         visibility: hidden;
+    }
+    /* ============================================
+       EMERGENCY INPUT FIXES (追加部分)
+       ============================================ */
+    
+    /* 1. 确保所有输入框文字在深色背景下为白色/浅灰色 */
+    #rag-chat-input textarea, 
+    #file-list-box textarea,
+    textarea[data-testid="textbox"],
+    input[type="text"] {
+        color: #f3f4f6 !important; /* 浅灰色文字 */
+        -webkit-text-fill-color: #f3f4f6 !important; /* 适配部分浏览器 */
+    }
+
+    /* 2. 修复输入框占位符颜色，防止它看起来像空白 */
+    ::placeholder {
+        color: #6b7280 !important; /* 暗灰色占位符 */
+        opacity: 1; 
+    }
+
+    /* 3. 强制 Chat 输入框容器背景为深色，防止透明导致背景色透出问题 */
+    #rag-chat-input {
+        background: #1a1a1a !important;
+        border: 1px solid #3f3f3f !important;
+    }
+
+    /* 4. 修复 Gradio 4.x+ 版本的内层容器背景 */
+    .gradio-container .tab-item {
+        background: #0f0f0f !important;
     }
 """

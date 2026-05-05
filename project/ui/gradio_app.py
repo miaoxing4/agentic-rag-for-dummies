@@ -43,7 +43,7 @@ def create_gradio_ui():
     def clear_chat_handler():
         chat_interface.clear_session()
     
-    with gr.Blocks(title="Agentic RAG") as demo:
+    with gr.Blocks(title="Agentic RAG", fill_height=True) as demo:
         
         with gr.Tab("Documents", elem_id="doc-management-tab"):
             gr.Markdown("## Add New Documents")
@@ -77,16 +77,32 @@ def create_gradio_ui():
             refresh_btn.click(format_file_list, None, file_list)
             clear_btn.click(clear_handler, None, file_list)
         
-        with gr.Tab("Chat"):
+        with gr.Tab("Chat", elem_id="chat-tab"):
             chatbot = gr.Chatbot(
                 height=720, 
                 placeholder="<strong>Ask me anything!</strong><br><em>I'll search, reason, and act to give you the best answer :)</em>",
                 show_label=False,
                 avatar_images=(None, os.path.join(ASSETS_DIR, "chatbot_avatar.png")),
-                layout="bubble"
+                layout="bubble",
+                elem_id="rag-chatbot"
             )
             chatbot.clear(clear_chat_handler)
-            
-            gr.ChatInterface(fn=chat_handler, chatbot=chatbot)
+
+            chat_input = gr.Textbox(
+                placeholder="Type a message...",
+                show_label=False,
+                lines=1,
+                max_lines=8,
+                container=False,
+                elem_id="rag-chat-input"
+            )
+
+            gr.ChatInterface(
+                fn=chat_handler,
+                chatbot=chatbot,
+                textbox=chat_input,
+                fill_height=True,
+                show_progress="minimal"
+            )
     
     return demo

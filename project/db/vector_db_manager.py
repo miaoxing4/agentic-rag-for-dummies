@@ -1,16 +1,22 @@
 import config
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore, FastEmbedSparse, RetrievalMode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 
 class VectorDbManager:
     __client: QdrantClient
-    __dense_embeddings: HuggingFaceEmbeddings
+    __dense_embeddings: OpenAIEmbeddings
     __sparse_embeddings: FastEmbedSparse
     def __init__(self):
         self.__client = QdrantClient(path=config.QDRANT_DB_PATH)
-        self.__dense_embeddings = HuggingFaceEmbeddings(model_name=config.DENSE_MODEL)
+        self.__dense_embeddings = OpenAIEmbeddings(
+            model=config.DENSE_MODEL,
+            base_url="http://127.0.0.1:1234/v1",
+            openai_api_key="any-string",
+            check_embedding_ctx_length=False,
+            max_retries=1
+            )
         self.__sparse_embeddings = FastEmbedSparse(model_name=config.SPARSE_MODEL)
 
     def create_collection(self, collection_name):
@@ -41,6 +47,7 @@ class VectorDbManager:
                     embedding=self.__dense_embeddings,
                     sparse_embedding=self.__sparse_embeddings,
                     retrieval_mode=RetrievalMode.HYBRID,
+                    content_payload_key="page_content",
                     sparse_vector_name=config.SPARSE_VECTOR_NAME
                 )
         except Exception as e:
