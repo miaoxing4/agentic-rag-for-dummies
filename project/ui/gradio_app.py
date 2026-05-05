@@ -80,14 +80,14 @@ def create_gradio_ui():
         with gr.Tab("Chat", elem_id="chat-tab"):
             chatbot = gr.Chatbot(
                 height=720, 
-                placeholder="""🔍 欢迎来到O-RAN 问题诊断助手
+                placeholder="""🔍 欢迎来到O-RAN L1问题诊断助手
 
 请描述您遇到的问题，需包含：
 
 【必填】制式        LTE / NR SA / NR NSA / NB-IoT
-【必填】PHY相关日志    错误打印原文
-【建议】业务现象    问题发生时的业务阶段或现象描述
- 我将尽力为您提供定义参考！
+【必填】PHY相关日志    L1问题相关L1打印原文
+【必填】业务现象    问题发生时的业务阶段或现象描述
+ 我将尽力为您提供定位参考！
 
 ──────────────────────────────
 示例一（有明确错误打印）：

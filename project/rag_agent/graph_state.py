@@ -12,6 +12,11 @@ def set_union(a: Set[str], b: Set[str]) -> Set[str]:
 
 class State(MessagesState):
     """State for main agent graph"""
+    valid: bool = False
+    mode: str = ""
+    error_log: str = ""
+    issue_des: str = ""
+    
     questionIsClear: bool = False
     conversation_summary: str = ""
     originalQuery: str = "" 

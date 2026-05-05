@@ -2,7 +2,7 @@ from typing import Literal, Set
 from langchain_core.messages import SystemMessage, HumanMessage, RemoveMessage, AIMessage, ToolMessage
 from langgraph.types import Command
 from .graph_state import State, AgentState
-from .schemas import QueryAnalysis
+from .schemas import QueryAnalysis, InputCheck
 from .prompts import *
 from utils import estimate_context_tokens
 from config import BASE_TOKEN_THRESHOLD, TOKEN_GROWTH_FACTOR
@@ -27,6 +27,85 @@ def summarize_history(state: State, llm):
     summary_response = llm.with_config(temperature=0.2).invoke([SystemMessage(content=get_conversation_summary_prompt()), HumanMessage(content=conversation)])
     return {"conversation_summary": summary_response.content, "agent_answers": [{"__reset__": True}]}
 
+def diag_input_check(state: State, llm):
+    """
+    检查用户输入是否包含诊断所需的完整信息。
+    
+    必填字段：
+    - mode: 制式类型 (LTE/NR/nbiot)
+    - error_log: PHY相关日志/错误信息
+    - issue_des: 现象描述
+    
+    输出：
+    - valid=True: 输入完整，返回 valid=True 和提取的字段
+    - valid=False: 输入不完整，返回 valid=False 和提示消息
+    """
+    last_message = state["messages"][-1]
+    conversation_summary = state.get("conversation_summary", "")
+
+    context_section = (f"Conversation Context:\n{conversation_summary}\n" if conversation_summary.strip() else "") + f"User Query:\n{last_message.content}\n"
+
+    # DEBUG: 打印发送给LLM的内容
+    print(f"\n{'='*60}")
+    print(f"🔍 [DIAG_INPUT_CHECK] 发送给LLM的内容:")
+    print(f"   User Query: {last_message.content[:200]}...")
+    print(f"{'='*60}")
+
+    try:
+        llm_with_structure = llm.with_config(temperature=0.1).with_structured_output(InputCheck)
+        response = llm_with_structure.invoke([
+            SystemMessage(content=wireless_diag_ass_input_prompt()), 
+            HumanMessage(content=context_section)
+        ])
+        
+        # DEBUG: 打印LLM返回的结构化数据
+        print(f"\n[DIAG_INPUT_CHECK] LLM返回的结构化数据:")
+        print(f"   valid = {response.valid}")
+        print(f"   mode = {repr(response.mode)}")
+        print(f"   error_log = {repr(response.error_log[:50] if response.error_log else '')}...")
+        print(f"   issue_des = {repr(response.issue_des[:50] if response.issue_des else '')}...")
+        print(f"{'='*60}")
+
+        if response.valid:
+            # 输入有效，提取制式并转换为首字母大写
+            mode_mapping = {
+                "lte": "LTE",
+                "nr": "NR", 
+                "nbiot": "NB-IoT",
+                "lte/nr": "LTE/NR",
+                "lte,nr": "LTE/NR"
+            }
+            mode_key = response.mode.lower().strip() if response.mode else ""
+            normalized_mode = mode_mapping.get(mode_key, response.mode.upper() if response.mode else "LTE")
+            
+            return {
+                "valid": True,
+                "mode": normalized_mode,
+                "error_log": response.error_log or "",
+                "issue_des": response.issue_des or ""
+            }
+        else:
+            # 输入不完整，构建友好的提示消息
+            missing_fields = []
+            if not response.mode or response.mode.strip() == "":
+                missing_fields.append("制式 (LTE/NR/nbiot)")
+            if not response.error_log or response.error_log.strip() == "":
+                missing_fields.append("PHY相关日志/错误信息")
+            if not response.issue_des or response.issue_des.strip() == "":
+                missing_fields.append("现象描述")
+            
+            feedback_msg = f"您的输入缺少以下必要信息，请补充：\n" + "\n".join(f"- {f}" for f in missing_fields)
+            return {"valid": False, "messages": [AIMessage(content=feedback_msg)]}
+            
+    except Exception as e:
+        # 错误处理：结构化输出解析失败时，进入澄清模式
+        print(f"\n⚠️ [DIAG_INPUT_CHECK] 结构化输出解析失败: {e}")
+        print(f"   进入澄清模式，要求用户补充信息")
+        return {
+            "valid": False, 
+            "messages": [AIMessage(content="请提供完整的问题信息，包括：\n- 制式 (LTE/NR/nbiot)\n- PHY相关日志/错误信息\n- 现象描述")]
+        }
+    
 def rewrite_query(state: State, llm):
     last_message = state["messages"][-1]
     conversation_summary = state.get("conversation_summary", "")
